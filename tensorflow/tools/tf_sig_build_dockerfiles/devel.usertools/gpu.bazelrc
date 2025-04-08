@@ -20,7 +20,8 @@ build --action_env=CACHEBUSTER=565341047
 
 # Test-related settings below this point.
 test:rocm --test_env=HSA_TOOLS_LIB=libroctracer64.so --test_sharding_strategy=disabled --action_env=TF_ENABLE_ONEDNN_OPTS=0 --action_env=OPENBLAS_CORETYPE=Haswell
-test --test_output=errors --test_timeout=920,2400,7200,9600 --local_test_jobs=4 --run_under=//tensorflow/tools/ci_build/gpu_build:parallel_gpu_execute
+test --test_output=errors --test_timeout=920,2400,7200,9600 --local_test_jobs=4
+test:parallel --run_under=//tensorflow/tools/ci_build/gpu_build:parallel_gpu_execute
 
 # "nonpip" tests are regular py_test tests.
 # Pass --config=nonpip to run the same suite of tests. If you want to run just
@@ -29,12 +30,14 @@ test --test_output=errors --test_timeout=920,2400,7200,9600 --local_test_jobs=4 
 test:nonpip_filters --test_tag_filters=gpu,requires-gpu,-no_gpu,-no_oss,-oss_excluded,-oss_serial,-benchmark-test,-no_cuda11,-no_oss_py39,-no_oss_py310
 test:nonpip_filters --build_tag_filters=gpu,requires-gpu,-no_gpu,-no_oss,-oss_excluded,-oss_serial,-benchmark-test,-no_cuda11,-no_oss_py39,-no_oss_py310
 test:nonpip_filters --test_lang_filters=py --test_size_filters=small,medium
+test:nonpip --config=parallel
 test:nonpip --config=nonpip_filters -- //tensorflow/... -//tensorflow/compiler/tf2tensorrt/... -//tensorflow/core/tpu/... -//tensorflow/lite/... -//tensorflow/tools/toolchains/...
 
 # "nonpip_large" will run tests marked as large as well
 test:nonpip_filters_large --test_tag_filters=gpu,requires-gpu,-no_gpu,-no_oss,-oss_serial,-no_cuda11,-cuda-only,-benchmark-test,-tpu,-v1only
 test:nonpip_filters_large --build_tag_filters=gpu,requires-gpu,-no_gpu,-no_oss,-oss_serial,-no_cuda11,-cuda-only
 test:nonpip_filters_large --test_lang_filters=py --flaky_test_attempts=2 --test_size_filters=small,medium,large
+test:nonpip_large --config=parallel
 test:nonpip_large --config=nonpip_filters_large -- //tensorflow/... -//tensorflow/compiler/tf2tensorrt/... -//tensorflow/compiler/xrt/... -//tensorflow/core/tpu/... -//tensorflow/lite/... -//tensorflow/tools/toolchains/...
 
 # "nonpip_filter_multi_gpu" will run a defined set of multi-gpu tests
@@ -71,6 +74,7 @@ test:nonpip_multi_gpu --config=nonpip_filters_multi_gpu -- \
 
 
 # For building libtensorflow archives
+test:libtensorflow_test --config=parallel
 test:libtensorflow_test -- //tensorflow/tools/lib_package:libtensorflow_test //tensorflow/tools/lib_package:libtensorflow_java_test
 build:libtensorflow_build -- //tensorflow/tools/lib_package:libtensorflow.tar.gz //tensorflow/tools/lib_package:libtensorflow_jni.tar.gz //tensorflow/java:libtensorflow.jar //tensorflow/java:libtensorflow-src.jar //tensorflow/tools/lib_package:libtensorflow_proto.zip
 
@@ -85,9 +89,11 @@ build:rbe --config=rbe_linux_cuda
 test:pycpp_filters --test_tag_filters=-no_oss,-oss_excluded,-oss_serial,-benchmark-test,-v1only,gpu,-no_gpu,-no_gpu_presubmit,-no_cuda11,-cuda-only
 test:pycpp_filters --build_tag_filters=-no_oss,-oss_excluded,-oss_serial,-benchmark-test,-v1only,gpu,-no_gpu,-no_gpu_presubmit,-no_cuda11,-cuda-only
 test:pycpp_filters --test_lang_filters=cc,py --test_size_filters=small,medium
+test:pycpp --config=parallel
 test:pycpp --config=pycpp_filters -- //tensorflow/... -//tensorflow/compiler/tf2tensorrt/... -//tensorflow/core/tpu/... -//tensorflow/lite/... -//tensorflow/tools/toolchains/... -//tensorflow/dtensor/python/tests:multi_client_test_2gpus -//tensorflow/dtensor/python/tests:multi_client_test_nccl_2gpus -//tensorflow/python/distribute/experimental:multi_worker_mirrored_strategy_test_2gpus
 
 # For XLA (rocm)
 test:xla_cpp_filters --test_tag_filters=gpu,requires-gpu-amd,-requires-gpu-nvidia,-no_oss,-oss_excluded,-oss_serial,-no_gpu,-cuda-only,-requires-gpu-sm60,-requires-gpu-sm60-only,-requires-gpu-sm70,-requires-gpu-sm70-only,-requires-gpu-sm80,-requires-gpu-sm80-only,-requires-gpu-sm86,-requires-gpu-sm86-only,-requires-gpu-sm89,-requires-gpu-sm89-only,-requires-gpu-sm90,-requires-gpu-sm90-only --keep_going
 test:xla_cpp_filters --build_tag_filters=gpu,requires-gpu-amd,-requires-gpu-nvidia,-no_oss,-oss_excluded,-oss_serial,-no_gpu,-cuda-only,-requires-gpu-sm60,-requires-gpu-sm60-only,-requires-gpu-sm70,-requires-gpu-sm70-only,-requires-gpu-sm80,-requires-gpu-sm80-only,-requires-gpu-sm86,-requires-gpu-sm86-only,-requires-gpu-sm89,-requires-gpu-sm89-only,-requires-gpu-sm90,-requires-gpu-sm90-only
+test:xla_cpp --config=parallel
 test:xla_cpp --config=xla_cpp_filters -- //xla/... //build_tools/...
