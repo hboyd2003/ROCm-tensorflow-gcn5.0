@@ -1,0 +1,182 @@
+name: Manual ROCm TF Build
+# Builds TensorFlow's wheel and upload it as an artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Git branch to build'
+        type: string
+        required: true
+        default: 'develop-upstream'
+      rocm_version:
+        description: 'ROCm version (e.g., 6.3.4)'
+        type: string
+        required: true
+        default: '6.3.4'
+      python_version:
+        description: 'Python version (e.g., 3.12)'
+        type: string
+        required: true
+        default: '3.12'
+      dockerfile:
+        description: 'Dockerfile path relative to tf_sig_build_dockerfiles/'
+        type: string
+        required: true
+        default: 'Dockerfile.rocm.ub24'
+      override_version:
+        description: 'Set version (Does not effect nightly)'
+        type: string
+        required: false
+      nightly:
+        description: 'Build as nightly (only effects name and version)'
+        type: boolean
+        required: true
+        default: true
+
+
+permissions:
+  contents: read
+
+env:
+  DOCKER_BUILDKIT: 1
+  TF_SRC_DIR: ${{github.workspace}}/tmp/tensorflow
+  TF_PKG_DIR: ${{github.workspace}}/tmp/packages
+  BAZEL_CACHE_DIR: ${{github.workspace}}/tmp/bazel-cache
+
+jobs:
+  build-tensorflow:
+    runs-on: self-hosted # GitHub's free runners don't have enough storage to build
+
+    steps:
+      - name: Create build directories
+        run: |
+          mkdir -p ${{ env.TF_SRC_DIR }}
+          mkdir -p ${{ env.TF_PKG_DIR }}
+          mkdir -p ${{ env.BAZEL_CACHE_DIR }}
+
+      - name: Checkout TensorFlow
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          path: ${{ env.TF_SRC_DIR }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          cd ${{ env.TF_SRC_DIR }}/tensorflow/tools/tf_sig_build_dockerfiles
+          DOCKER_BUILDKIT=1 docker build \
+            -f ${{ inputs.dockerfile }} \
+            --build-arg ROCM_VERSION=${{ inputs.rocm_version }} \
+            --build-arg PYTHON_VERSION=${{ inputs.python_version }} \
+            -t tf-rocm-build \
+            .
+
+      - name: Run Docker container
+        run: |
+          docker run -dit \
+            --name tf_rocm_build \
+            -v ${{ env.TF_SRC_DIR }}:/tf/tensorflow \
+            -v ${{ env.TF_PKG_DIR }}:/tf/pkg \
+            -v ${{ env.BAZEL_CACHE_DIR }}:/tf/cache \
+            tf-rocm-build bash
+
+      - name: Override version as nightly
+        if: ${{ inputs.nightly }}
+        run: |
+          docker exec tf_rocm_build \
+            bash -c "cd /tf/tensorflow && \
+            python3 tensorflow/tools/ci_build/update_version.py --nightly"
+
+      - name: Override version
+        if: ${{ inputs.override_version != '' && !inputs.nightly}}
+        run: |
+          docker exec tf_rocm_build \
+            bash -c "cd /tf/tensorflow && \
+            python3 tensorflow/tools/ci_build/update_version.py --version ${{ inputs.override_version }}"
+
+      - name: Build & package (wheel) TensorFlow
+        run: |
+          docker exec tf_rocm_build \
+            bash -c "cd /tf/tensorflow && \
+            bazel --bazelrc=/usertools/gpu.bazelrc build --config=rocm --config=sigbuild_local_cache \
+            tensorflow/tools/pip_package:wheel --verbose_failures"
+          docker exec tf_rocm_build \
+            bash -c "cd /tf/tensorflow && \
+            bazel --bazelrc=/usertools/gpu.bazelrc run --config=rocm --config=sigbuild_local_cache \
+            tensorflow/tools/pip_package:copy_wheel -- /tf/pkg"
+
+      - name: Build & package libtensorflow
+        run: |
+           docker exec tf_rocm_build \
+            bash -c "cd /tf/tensorflow && \
+            bazel --bazelrc=/usertools/gpu.bazelrc build --config=rocm --config=sigbuild_local_cache \
+            --config=libtensorflow_build --verbose_failures"
+           docker exec tf_rocm_build bash -c "cd /tf/tensorflow && \
+             /usertools/repack_libtensorflow.sh /tf/pkg -gpu-linux-x86_64"
+
+      - name: Validate expected files
+        run: |
+          set -e
+          pkg_dir="${{ env.TF_PKG_DIR }}"
+
+          # Globs for required files (not hardcoded platform-specific)
+          patterns=(
+            "libtensorflow-gpu-*.tar.gz"
+            "libtensorflow-src.jar"
+            "libtensorflow.jar"
+            "libtensorflow_jni-gpu-*.tar.gz"
+            "libtensorflow_proto.zip"
+            "*.whl"
+          )
+
+          echo "Validating required files in $pkg_dir..."
+
+          for pattern in "${patterns[@]}"; do
+            matches=$(find "$pkg_dir" -maxdepth 1 -name "$pattern")
+            if [ -z "$matches" ]; then
+              echo "::warning::Missing file matching pattern '$pattern'"
+            fi
+          done
+
+      - name: Generate build-info.txt
+        run: |
+          pkg_dir="${{ env.TF_PKG_DIR }}"
+          src_dir="${{ env.TF_SRC_DIR }}"
+          build_info="$pkg_dir/build-info.txt"
+
+          commit_hash=$(git -C "$src_dir" rev-parse HEAD)
+          build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          {
+            echo "Build date: $build_date"
+            echo "Branch: ${{ inputs.branch }}"
+            echo "Commit: $commit_hash"
+            echo "Dockerfile: ${{ inputs.dockerfile }}"
+            echo "ROCm version: ${{ inputs.rocm_version }}"
+            echo "Python version: ${{ inputs.python_version }}"
+            echo "TensorFlow overridden version: ${{ inputs.override_version }}"
+            echo "Nightly: ${{ inputs.nightly }}"
+          } > "$build_info"
+
+          echo "Generated build-info.txt:"
+          cat "$build_info"
+
+      - name: Upload output artifact
+        uses: actions/upload-artifact@v4
+        continue-on-error: false
+        with:
+          name: tensorflow-rocm-packages
+          path: ${{ env.TF_PKG_DIR }}
+          if-no-files-found: error
+
+      - name: Cleanup output
+        run: rm -rf ${{ env.TF_PKG_DIR }}/*
+
+      - name: Cleanup container
+        if: always()
+        run: |
+          docker stop tf_rocm_build || true
+          docker rm tf_rocm_build || true
