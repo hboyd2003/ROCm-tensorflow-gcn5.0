@@ -13,5 +13,6 @@ llvm_patch_list = [
     "//third_party/triton:llvm_integration/cl728192169.patch",
     "//third_party/triton:llvm_integration/cl728670559.patch",
     "//third_party/triton:llvm_integration/cl734808760.patch",
+    "//third_party/triton/llvm_integration:Add_support_for_GCN5_0_ISA.patch",
     # Add new patches just above this line
 ]
