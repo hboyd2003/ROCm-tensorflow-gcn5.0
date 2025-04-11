@@ -1,0 +1,43 @@
+Subject: [PATCH] Add support for GCN5.0 ISA
+---
+Index: third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h b/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h
+--- a/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h	(revision 202c92f95f98c105c0561f2e5368263dba6a0bbc)
++++ b/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h	(date 1744412208980)
+@@ -8,6 +8,7 @@
+ // A list of ISA families we care about.
+ enum class ISAFamily {
+   Unknown,
++  GCN5,
+   CDNA1,
+   CDNA2,
+   CDNA3,
+Index: third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp b/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp
+--- a/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp	(revision 202c92f95f98c105c0561f2e5368263dba6a0bbc)
++++ b/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp	(date 1744412189155)
+@@ -9,6 +9,16 @@
+   // See https://llvm.org/docs/AMDGPUUsage.html#processors for how to categorize
+   // the following target gfx architectures.
+ 
++  // GCN ISA cases
++  switch (kind) {
++  case llvm::AMDGPU::GK_GFX900:
++  case llvm::AMDGPU::GK_GFX902:
++  case llvm::AMDGPU::GK_GFX906:
++    return ISAFamily::GCN5;
++  default:
++    break;
++  }
++
+   // CDNA ISA cases
+   switch (kind) {
+   case llvm::AMDGPU::GK_GFX950:
