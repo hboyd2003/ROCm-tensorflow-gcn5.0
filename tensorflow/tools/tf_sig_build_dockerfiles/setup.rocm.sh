@@ -137,7 +137,7 @@ elif [[ "$DISTRO" == "el8" ]]; then
 fi
 
 
-GPU_DEVICE_TARGETS=${GPU_DEVICE_TARGETS:-"gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1200 gfx1201"}
+GPU_DEVICE_TARGETS=${GPU_DEVICE_TARGETS:-"gfx900 gfx902 gfx906"}
 
 echo $ROCM_VERSION
 echo $ROCM_REPO
